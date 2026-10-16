@@ -37,20 +37,20 @@ def verify(path, verbose=True):
 
 def apply_patch(path):
     data = load(path)
-    # 优先定点
+    # 幂等：偏移处已是 onDemand → 跳过
+    if data[OFFSET:OFFSET+len(TO)] == TO:
+        print(f"OK: 偏移 {OFFSET} 已是 onDemand，幂等跳过")
+        return
+    # 定点替换（唯一允许的路径）
     if data[OFFSET:OFFSET+len(FROM)] == FROM:
         data[OFFSET:OFFSET+len(FROM)] = TO
         save(path, data)
         print(f"OK: 定点补丁 @ {OFFSET}")
         return
-    # 否则全文件搜索
-    idx = data.find(FROM)
-    if idx >= 0:
-        data[idx:idx+len(FROM)] = TO
-        save(path, data)
-        print(f"OK: 全文件搜索补丁 @ {idx}（注意：实际偏移 ≠ 预期 {OFFSET}，请记录）")
-        return
-    print("FAIL: 未找到 'disabled'（可能已打过补丁或版本不同）")
+    # 锚点不在预期偏移：禁止盲替换（同代内核 disabled 字面量 160 处），报错退出
+    print(f"FAIL: 偏移 {OFFSET} 处内容为 {bytes(data[OFFSET:OFFSET+8]).decode('ascii', 'replace')!r}，非 'disabled' 也非 'onDemand'")
+    print("      请先用 check-intranet.ps1 / 字节定位工具确认本机实际锚点偏移（该偏移是安装特定值），")
+    print("      或将本文件顶部 OFFSET 改为实际偏移后重试。禁止全文件盲替换。")
     sys.exit(1)
 
 def rollback(path):
