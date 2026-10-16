@@ -73,6 +73,26 @@ if ($envV) {
 } else {
     Write-Check "env 注入" "受限" "未设置 ZCODE_DYNAMIC_WORKFLOW_MODE（即便设置官方版也会删除）"
 }
+# 3.1 首选锚点：散装 zcode.cjs
+$cjs = $null
+$cjsCandidates = @(
+    "$env:USERPROFILE\.zcode\app\resources\glm\zcode.cjs",
+    "$env:LOCALAPPDATA\Programs\zcode\resources\glm\zcode.cjs"
+)
+foreach ($c in $cjsCandidates) { if (Test-Path $c) { $cjs = $c; break } }
+if ($cjs) {
+    $txt = [System.IO.File]::ReadAllText($cjs)
+    if ($txt.Contains('Ufr="onDemand"')) {
+        Write-Check "zcode.cjs 档位" "OK" "已是 onDemand（动态工作流已启用）"
+    } elseif ($txt.Contains('Ufr="disabled"')) {
+        Write-Check "zcode.cjs 档位" "受限" "默认档位 disabled（可用 enable-dynamic-workflow.ps1 一键改为 onDemand）"
+    } else {
+        Write-Check "zcode.cjs 档位" "受限" "未找到 Ufr 锚点（版本不同）"
+    }
+} else {
+    Write-Check "zcode.cjs 档位" "缺失" "未找到 resources\glm\zcode.cjs，无法检测"
+}
+# 3.2 备选锚点：app.asar 偏移
 $asar = $null
 $asarCandidates = @(
     "$env:USERPROFILE\.zcode\app\resources\app.asar",
@@ -84,16 +104,18 @@ if ($asar) {
     $s = [System.Text.Encoding]::ASCII.GetString($bytes)
     $off = $s.IndexOf("disabled", 280000000)
     if ($off -ge 0) {
-        Write-Check "字节补丁点" "OK" "找到 disabled 位于偏移 $off（预期 280109971 附近）"
+        Write-Check "asar 补丁点" "OK" "找到 disabled 位于偏移 $off（用户实测 280109971；以本机为准）"
         if ($off -ne 280109971) {
-            Write-Warning "  实际偏移 $off ≠ 预期 280109971，打补丁时请用此实际偏移"
+            Write-Warning "  实际偏移 $off ≠ 用户实测 280109971，打补丁时请用此实际偏移"
         }
     } else {
-        Write-Check "字节补丁点" "受限" "未在预期区间找到 disabled（可能已打过补丁或版本不同）"
+        Write-Check "asar 补丁点" "受限" "未在预期区间找到 disabled（可能已打过补丁或版本不同）"
     }
 } else {
-    Write-Check "字节补丁点" "缺失" "未找到 app.asar，无法检测"
+    Write-Check "asar 补丁点" "缺失" "未找到 app.asar，无法检测"
 }
+# 3.3 CLI 零修改方案提示
+Write-Host "  提示：CLI/脚本会话可用零修改方案：zcode --workflow-mode onDemand|alwaysOn（见 REPORT.md 2.2 途径8）" -ForegroundColor DarkGray
 
 # ---- 4. 自动更新 / 遥测 ----
 Write-Host "--- 4. 自动更新与遥测 ---"
