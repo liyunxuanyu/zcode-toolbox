@@ -1,0 +1,22 @@
+{
+  "name": "dev-offline-office-local",
+  "plugins": [
+    {
+      "name": "offline-office-docs",
+      "source": "./offline-office-docs",
+      "version": "0.1.0",
+      "description": "Offline office document toolkit for Windows intranet: read/edit Word/Excel/PPT OOXML packages, extract/merge/split/create PDFs with a pure-PowerShell engine, and convert via installed MS Office/WPS. No internet, no npm, no Python.",
+      "displayName": "Offline Office Docs",
+      "displayName_i18n": {
+        "zh-CN": "离线办公文档处理"
+      },
+      "description_i18n": {
+        "zh-CN": "Windows 内网离线环境办公文档工具：纯 PowerShell 直接读写 Word/Excel/PPT（OOXML），内置 PDF 引擎（提取/合并/拆分/旋转/生成），装有 Office/WPS 时可互转 PDF。无需外网、npm 或 Python。"
+      },
+      "category": "productivity",
+      "author": {
+        "name": "ZCode offline toolkit"
+      }
+    }
+  ]
+}

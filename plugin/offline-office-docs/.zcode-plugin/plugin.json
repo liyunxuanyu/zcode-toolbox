@@ -1,0 +1,10 @@
+{
+  "name": "offline-office-docs",
+  "version": "0.1.0",
+  "description": "Offline office document toolkit for Windows intranet: read/edit Word(.docx)/Excel(.xlsx)/PPT(.pptx) OOXML packages, extract/merge/split/create PDFs, and convert Office files to PDF via installed MS Office or WPS. Pure PowerShell 5.1 + .NET - no internet, no npm, no Python required.",
+  "author": {
+    "name": "ZCode offline toolkit"
+  },
+  "skills": "./skills",
+  "commands": "./commands"
+}
