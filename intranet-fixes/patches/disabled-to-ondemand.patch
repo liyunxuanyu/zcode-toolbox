@@ -3,26 +3,35 @@
 ## 背景
 官方正式版 ZCode 在构建内核/host 子进程环境时删除 `ZCODE_DYNAMIC_WORKFLOW_MODE`，
 `isPreview` 为构建期烙死的字符串 `"production"`（正式版永远非 Preview），
-内核 host 内真正门禁为云端灰度档位：云端不可达（内网）时兜底硬编码 `"disabled"`。
+内核 host 内默认档位为：env → 远端档位(remote.mode) → 默认 `"disabled"`（内网云端不可达即落到默认）。
 
-## 补丁点
+## 首选方案：散装 zcode.cjs 补丁（推荐，风险最低）
+- 文件：`resources\glm\zcode.cjs`（普通文本文件，非 asar 压缩格式）
+- 锚点：`Ufr="disabled"` —— **全文件唯一**（本机验证 count=1，紧邻 `Bfr="ZCODE_DYNAMIC_WORKFLOW_MODE"`）
+- 操作：等长替换为 `Ufr="onDemand"`（字符串等长，无 asar/JSON 结构风险）
+- 回滚：还原该文件即可
+- 由 `scripts/enable-dynamic-workflow.ps1` 自动执行（优先此方案）
+
+## 备选方案：app.asar 偏移补丁
 - 文件：`resources/app.asar`
-- 偏移：`280109971`（用户内网实测；本包已用同源代码交叉验证定位方式）
+- 偏移：`280109971`（用户 Windows 内网机实测；**注意：偏移是安装特定值**，
+  Linux 同代包该偏移处是 allowlist，请先运行 `check-intranet.ps1` 定位实际偏移）
 - 操作：将 `"disabled"` 原地等长替换为 `"onDemand"`（两串均为 8 字节 ASCII，无需调整 JSON 目录长度）
 - 效果：内核在"云端不可达"时按 `onDemand` 处理，会话注入动态工作流支持
 
 ## 为什么是等长替换
 asar 内部是 JSON 目录 + 文件二进制拼接，`"disabled"` 和 `"onDemand"` 长度相同，
 直接覆盖不改变任何长度字段，文件结构完全不变，风险最低、可一行回滚。
+散装 .cjs 同理且更直接（无压缩/结构约束）。
 
 ## 应用方式（推荐使用 scripts/enable-dynamic-workflow.ps1）
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\enable-dynamic-workflow.ps1
 ```
 脚本会自动：
-1. 备份原文件到 `logs-backup\app.asar.bak-时间戳`
-2. 校验偏移处内容确为 `disabled`（版本不符则自动转全文件搜索）
-3. 等长替换并回写
+1. 备份原文件到 `logs-backup\`（zcode.cjs.bak-时间戳 / app.asar.bak-时间戳）
+2. 首选散装 .cjs 锚点替换（Ufr=disabled → onDemand）
+3. 若 .cjs 不可用则备选 asar 定点偏移（版本不符自动转全文件搜索）
 4. 校验结果
 5. 注册计划任务（登录时自愈，防止自动更新/异常恢复覆盖补丁）
 
@@ -34,12 +43,17 @@ powershell -ExecutionPolicy Bypass -File scripts\enable-dynamic-workflow.ps1 -Ro
 
 ## 独立 Python 应用（若目标机有 Python 3）
 ```bash
-python3 patches/apply-patch.py <app.asar路径> apply    # 打补丁
+python3 patches/apply-patch.py <app.asar路径> apply    # 打补丁（asar 方案）
 python3 patches/apply-patch.py <app.asar路径> rollback # 回滚（需先备份）
 python3 patches/apply-patch.py <app.asar路径> verify   # 校验
 ```
 
+## CLI/脚本会话零修改方案（无需补丁）
+内核 CLI 原生支持：`zcode --workflow-mode onDemand|alwaysOn`
+（须与 `--prompt`/`--target`/`tui` 同用；CLI 进程不经过桌面主进程，无 delete 逻辑）。
+适合批处理/终端脚本；桌面 Composer 输入框内不适用（此时用上面的补丁方案）。
+
 ## 注意事项
 - 这是对已安装程序的本地功能开关调整；应用自动更新会覆盖补丁（用户已关闭自动更新，计划任务兜底自愈）
-- 版本升级后偏移可能变化，先跑 `check-intranet.ps1` 重新定位
+- 版本升级后锚点/偏移可能变化，先跑 `check-intranet.ps1` 重新定位
 - 与 offline-office-docs 插件完全解耦，不影响其任何文件
