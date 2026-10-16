@@ -1,0 +1,45 @@
+# 字节补丁说明（disabled → onDemand）
+
+## 背景
+官方正式版 ZCode 在构建内核/host 子进程环境时删除 `ZCODE_DYNAMIC_WORKFLOW_MODE`，
+`isPreview` 为构建期烙死的字符串 `"production"`（正式版永远非 Preview），
+内核 host 内真正门禁为云端灰度档位：云端不可达（内网）时兜底硬编码 `"disabled"`。
+
+## 补丁点
+- 文件：`resources/app.asar`
+- 偏移：`280109971`（用户内网实测；本包已用同源代码交叉验证定位方式）
+- 操作：将 `"disabled"` 原地等长替换为 `"onDemand"`（两串均为 8 字节 ASCII，无需调整 JSON 目录长度）
+- 效果：内核在"云端不可达"时按 `onDemand` 处理，会话注入动态工作流支持
+
+## 为什么是等长替换
+asar 内部是 JSON 目录 + 文件二进制拼接，`"disabled"` 和 `"onDemand"` 长度相同，
+直接覆盖不改变任何长度字段，文件结构完全不变，风险最低、可一行回滚。
+
+## 应用方式（推荐使用 scripts/enable-dynamic-workflow.ps1）
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\enable-dynamic-workflow.ps1
+```
+脚本会自动：
+1. 备份原文件到 `logs-backup\app.asar.bak-时间戳`
+2. 校验偏移处内容确为 `disabled`（版本不符则自动转全文件搜索）
+3. 等长替换并回写
+4. 校验结果
+5. 注册计划任务（登录时自愈，防止自动更新/异常恢复覆盖补丁）
+
+## 回滚
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\enable-dynamic-workflow.ps1 -Rollback
+```
+使用最新备份恢复原文件。
+
+## 独立 Python 应用（若目标机有 Python 3）
+```bash
+python3 patches/apply-patch.py <app.asar路径> apply    # 打补丁
+python3 patches/apply-patch.py <app.asar路径> rollback # 回滚（需先备份）
+python3 patches/apply-patch.py <app.asar路径> verify   # 校验
+```
+
+## 注意事项
+- 这是对已安装程序的本地功能开关调整；应用自动更新会覆盖补丁（用户已关闭自动更新，计划任务兜底自愈）
+- 版本升级后偏移可能变化，先跑 `check-intranet.ps1` 重新定位
+- 与 offline-office-docs 插件完全解耦，不影响其任何文件
